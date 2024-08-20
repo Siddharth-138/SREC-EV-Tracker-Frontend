@@ -32,7 +32,7 @@ This project is a real-time tracking system for rally cars, built using Next.js 
 1. Clone the repository:
 
     ```sh
-    git clone https://github.com/Nareshram1/blueband-frontend.git
+    git clone https://github.com/Siddharth-138/Blueband-backend.git
     cd blueband-frontend
     ```
 

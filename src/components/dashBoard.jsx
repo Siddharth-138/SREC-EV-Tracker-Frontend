@@ -33,6 +33,33 @@ const SosIcon = {
 
 const audio = typeof window !== 'undefined' ? new Audio("alert.mp3") : null;
 
+// Predefined track coordinates
+const trackCoordinates = [
+  { lat: 11.102403478456077, lng: 76.96544855833055 },
+  { lat: 11.102436156225407, lng: 76.9654638854771 },
+  { lat: 11.102468833994736, lng: 76.96547921262366 },
+  { lat: 11.102473771876689, lng: 76.96551552457437 },
+  { lat: 11.10247870975864, lng: 76.96555183652508 },
+  { lat: 11.102472259347298, lng: 76.96558790131832 },
+  { lat: 11.102455283756898, lng: 76.9656202217673 },
+  { lat: 11.102438308166498, lng: 76.96565254221628 },
+  { lat: 11.102406181504117, lng: 76.96566903496768 },
+  { lat: 11.102373275513694, lng: 76.96568384635957 },
+  { lat: 11.10234036952327, lng: 76.96569865775146 },
+  { lat: 11.102305279925304, lng: 76.96570673141835 },
+  { lat: 11.102278111019599, lng: 76.96568270427024 },
+  { lat: 11.102275511556412, lng: 76.96564614117216 },
+  { lat: 11.102272912093225, lng: 76.96560957807408 },
+  { lat: 11.102281076658281, lng: 76.96557387582494 },
+  { lat: 11.102289241223337, lng: 76.96553817357581 },
+  { lat: 11.102299368730025, lng: 76.96550299742195 },
+  { lat: 11.102309496236712, lng: 76.96546782126809 },
+  { lat: 11.102337996250853, lng: 76.96544545278294 },
+  { lat: 11.10237307234155, lng: 76.96543731838906 },
+  { lat: 11.102389559707879, lng: 76.96540473653049 },
+  { lat: 11.102406047074208, lng: 76.96537215467191 }
+];
+
 function DashBoard() {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -70,13 +97,81 @@ function DashBoard() {
     return date.toISOString();
   };
 
+  const findClosestTrackPoint = (position) => {
+    let closestPoint = trackCoordinates[0];
+    let minDistance = Number.MAX_VALUE;
+
+    for (const point of trackCoordinates) {
+      const distance = Math.sqrt(
+        Math.pow(position.lat - point.lat, 2) + Math.pow(position.lng - point.lng, 2)
+      );
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestPoint = point;
+      }
+    }
+
+    return closestPoint;
+  };
+
+  const moveAlongTrack = (carId, startPosition, endPosition, speed) => {
+    const startIndex = trackCoordinates.findIndex(
+      point => point.lat === startPosition.lat && point.lng === startPosition.lng
+    );
+    const endIndex = trackCoordinates.findIndex(
+      point => point.lat === endPosition.lat && point.lng === endPosition.lng
+    );
+
+    let currentIndex = startIndex;
+    const moveInterval = setInterval(() => {
+      currentIndex = (currentIndex + 1) % trackCoordinates.length;
+      const newPosition = trackCoordinates[currentIndex];
+
+      setCars(prevCars => {
+        const newCars = new Map(prevCars);
+        const car = newCars.get(carId);
+        if (car) {
+          car.latitude = newPosition.lat;
+          car.longitude = newPosition.lng;
+          newCars.set(carId, car);
+        }
+        return newCars;
+      });
+
+      updatePath(carId, newPosition);
+
+      // Update the marker position
+      const marker = markersRef.current.get(carId);
+      if (marker) {
+        marker.setPosition(newPosition);
+      }
+
+      if (currentIndex === endIndex) {
+        clearInterval(moveInterval);
+      }
+    }, 1000 / speed); // Adjust interval based on speed
+  };
+
   const updateCarData = useCallback((data) => {
     console.log('hit ', data, getTimestamp());
     setCars((prevCars) => {
       const newCars = new Map(prevCars);
       data.forEach(car => {
-        newCars.set(car.carId, car);
-        updatePath(car.carId, { lat: car.latitude, lng: car.longitude });
+        const currentPosition = newCars.get(car.carId) || { latitude: trackCoordinates[0].lat, longitude: trackCoordinates[0].lng };
+        const closestPoint = findClosestTrackPoint({ lat: car.latitude, lng: car.longitude });
+
+        moveAlongTrack(
+          car.carId,
+          { lat: currentPosition.latitude, lng: currentPosition.longitude },
+          closestPoint,
+          car.speed
+        );
+
+        newCars.set(car.carId, {
+          ...car,
+          latitude: closestPoint.lat,
+          longitude: closestPoint.lng
+        });
       });
       return newCars;
     });
@@ -239,7 +334,12 @@ function DashBoard() {
       }
     }, [position, carId, SlidingMarker]);
 
-    return null;
+    return (
+      <Marker
+        position={position}
+        icon={sosMessages.has(carId) ? SosIcon : RaceCar}
+      />
+    );
   });
 
   const sortedCars = useMemo(() => Array.from(cars.values()).sort((a, b) => a.carId - b.carId), [cars]);
@@ -310,25 +410,21 @@ function DashBoard() {
                     mapRef.current = map;
                   }}
                 >
+                  {/* Predefined Track */}
+                  <Polyline
+                    path={trackCoordinates}
+                    options={{
+                      strokeColor: "#0000FF",
+                      strokeOpacity: 1.0,
+                      strokeWeight: 3
+                    }}
+                  />
+
                   {sortedCars.map((car) => (
                     <React.Fragment key={car.carId}>
                       <AnimatedMarker
                         position={{ lat: car.latitude, lng: car.longitude }}
                         carId={car.carId}
-                      />
-                      <Marker
-                        position={{ lat: car.latitude, lng: car.longitude }}
-                        icon={sosMessages.has(car.carId) ? SosIcon : RaceCar}
-                      >
-                        {/* Add your popup content here if needed */}
-                      </Marker>
-                      <Polyline
-                        path={paths.get(car.carId) || []}
-                        options={{
-                          strokeColor: "#FF0000",
-                          strokeOpacity: 1.0,
-                          strokeWeight: 2
-                        }}
                       />
                     </React.Fragment>
                   ))}
@@ -384,20 +480,18 @@ function DashBoard() {
   );
 }
 
-
 const CarInfo = ({ car, sosMessages, onClick }) => {
-  const hasSos = sosMessages.has(parseInt(car.carId));
-  // console.log('--',sosMessages);
-  // console.log('R/G', hasSos, car.carId);
+  const hasSos = sosMessages.has(car.carId);
   return (
     <div
       className={`relative flex flex-col mt-2 p-2 rounded-lg cursor-pointer ${hasSos ? 'border-4 border-red-600 animate-blinking' : 'border border-green-300 bg-green-500'}`}
       onClick={() => onClick(car.latitude, car.longitude)}
     >
       <span className='font-bold text-white'>Car: {car.carId}</span>
-      <span className='text-white'>Latitude: { (parseFloat(car.latitude).toFixed(4)) }</span>
-      <span className='text-white'>Longitude: {(parseFloat(car.longitude).toFixed(4))}</span>
+      <span className='text-white'>Latitude: {parseFloat(car.latitude).toFixed(4)}</span>
+      <span className='text-white'>Longitude: {parseFloat(car.longitude).toFixed(4)}</span>
       <span className='text-white'>Speed: {parseFloat(car.speed).toFixed(1)} kmph</span>
+      <span className='text-white'>Course: {parseFloat(car.course).toFixed(1)}°</span>
     </div>
   );
 };

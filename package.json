@@ -27,6 +27,7 @@
     "lucide-react": "^0.396.0",
     "marker-animate-unobtrusive": "^0.2.9",
     "next": "14.2.3",
+    "papaparse": "^5.4.1",
     "react": "^18",
     "react-dom": "^18",
     "react-leaflet": "^4.2.1",
