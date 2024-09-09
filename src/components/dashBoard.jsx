@@ -114,42 +114,46 @@ function DashBoard() {
     return closestPoint;
   };
 
+  const [carsFinishedTrack, setCarsFinishedTrack] = useState(new Map());
+
+  // ... (other functions remain the same)
+
   const moveAlongTrack = (carId, startPosition, endPosition, speed) => {
     const startIndex = trackCoordinates.findIndex(
       point => point.lat === startPosition.lat && point.lng === startPosition.lng
     );
-    const endIndex = trackCoordinates.findIndex(
-      point => point.lat === endPosition.lat && point.lng === endPosition.lng
-    );
-
+    const endIndex = trackCoordinates.length - 1;
+  
     let currentIndex = startIndex;
     const moveInterval = setInterval(() => {
-      currentIndex = (currentIndex + 1) % trackCoordinates.length;
-      const newPosition = trackCoordinates[currentIndex];
-
-      setCars(prevCars => {
-        const newCars = new Map(prevCars);
-        const car = newCars.get(carId);
-        if (car) {
-          car.latitude = newPosition.lat;
-          car.longitude = newPosition.lng;
-          newCars.set(carId, car);
+      if (currentIndex < endIndex) {
+        currentIndex++;
+        const newPosition = trackCoordinates[currentIndex];
+  
+        setCars(prevCars => {
+          const newCars = new Map(prevCars);
+          const car = newCars.get(carId);
+          if (car) {
+            car.latitude = newPosition.lat;
+            car.longitude = newPosition.lng;
+            newCars.set(carId, car);
+          }
+          return newCars;
+        });
+  
+        updatePath(carId, newPosition);
+  
+        const marker = markersRef.current.get(carId);
+        if (marker) {
+          marker.setPosition(newPosition);
         }
-        return newCars;
-      });
-
-      updatePath(carId, newPosition);
-
-      // Update the marker position
-      const marker = markersRef.current.get(carId);
-      if (marker) {
-        marker.setPosition(newPosition);
-      }
-
-      if (currentIndex === endIndex) {
+      } else {
+        // Car has reached the end of the track
         clearInterval(moveInterval);
+        setCarsFinishedTrack(prev => new Map(prev).set(carId, true));
+        console.log(`Car ${carId} has finished the race!`);
       }
-    }, 1000 / speed); // Adjust interval based on speed
+    }, 1000 / speed);
   };
 
   const updateCarData = useCallback((data) => {
@@ -157,25 +161,40 @@ function DashBoard() {
     setCars((prevCars) => {
       const newCars = new Map(prevCars);
       data.forEach(car => {
-        const currentPosition = newCars.get(car.carId) || { latitude: trackCoordinates[0].lat, longitude: trackCoordinates[0].lng };
-        const closestPoint = findClosestTrackPoint({ lat: car.latitude, lng: car.longitude });
-
-        moveAlongTrack(
-          car.carId,
-          { lat: currentPosition.latitude, lng: currentPosition.longitude },
-          closestPoint,
-          car.speed
-        );
-
-        newCars.set(car.carId, {
-          ...car,
-          latitude: closestPoint.lat,
-          longitude: closestPoint.lng
-        });
+        const currentCar = newCars.get(car.carId);
+        const newPosition = { lat: car.latitude, lng: car.longitude };
+  
+        if (!currentCar) {
+          // New car, add it to the map
+          newCars.set(car.carId, {
+            ...car,
+            latitude: newPosition.lat,
+            longitude: newPosition.lng
+          });
+        } else {
+          // Existing car, update its position smoothly
+          const marker = markersRef.current.get(car.carId);
+          if (marker && marker.setPosition && typeof marker.setDuration === 'function') {
+            // Use SlidingMarker for smooth transition
+            marker.setDuration(1000);
+            marker.setEasing('linear');
+            marker.setPosition(newPosition);
+          } else {
+            // Fallback to instant position update if SlidingMarker is not available
+            newCars.set(car.carId, {
+              ...car,
+              latitude: newPosition.lat,
+              longitude: newPosition.lng
+            });
+          }
+        }
+  
+        // Update path regardless of whether the car is on or off the predefined track
+        updatePath(car.carId, newPosition);
       });
       return newCars;
     });
-  }, []);
+  }, [carsFinishedTrack]);
 
   const updatePath = (carId, position) => {
     setPaths(prevPaths => {
@@ -306,7 +325,7 @@ function DashBoard() {
       setMapCenter({ lat: selectedTrack.latitude, lng: selectedTrack.longitude });
     } else {
       setMapCenter({ lat: 11.10223, lng: 76.9659 });
-    }
+    } 
   };
 
   const handleInputChange = (e) => {
