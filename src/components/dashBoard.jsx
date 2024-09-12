@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { GoogleMap, Marker, Polyline, useJsApiLoader } from '@react-google-maps/api';
+import { GoogleMap, Marker, Polyline, useJsApiLoader, InfoWindow } from '@react-google-maps/api';
 import io from 'socket.io-client';
 import Image from 'next/image';
 import supabase from '../../utils/supabase/client';
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Papa from 'papaparse';
 
 const RaceCar = {
   url: '/racingcar.png',
@@ -33,33 +34,6 @@ const SosIcon = {
 
 const audio = typeof window !== 'undefined' ? new Audio("alert.mp3") : null;
 
-// Predefined track coordinates
-const trackCoordinates = [
-  { lat: 11.102403478456077, lng: 76.96544855833055 },
-  { lat: 11.102436156225407, lng: 76.9654638854771 },
-  { lat: 11.102468833994736, lng: 76.96547921262366 },
-  { lat: 11.102473771876689, lng: 76.96551552457437 },
-  { lat: 11.10247870975864, lng: 76.96555183652508 },
-  { lat: 11.102472259347298, lng: 76.96558790131832 },
-  { lat: 11.102455283756898, lng: 76.9656202217673 },
-  { lat: 11.102438308166498, lng: 76.96565254221628 },
-  { lat: 11.102406181504117, lng: 76.96566903496768 },
-  { lat: 11.102373275513694, lng: 76.96568384635957 },
-  { lat: 11.10234036952327, lng: 76.96569865775146 },
-  { lat: 11.102305279925304, lng: 76.96570673141835 },
-  { lat: 11.102278111019599, lng: 76.96568270427024 },
-  { lat: 11.102275511556412, lng: 76.96564614117216 },
-  { lat: 11.102272912093225, lng: 76.96560957807408 },
-  { lat: 11.102281076658281, lng: 76.96557387582494 },
-  { lat: 11.102289241223337, lng: 76.96553817357581 },
-  { lat: 11.102299368730025, lng: 76.96550299742195 },
-  { lat: 11.102309496236712, lng: 76.96546782126809 },
-  { lat: 11.102337996250853, lng: 76.96544545278294 },
-  { lat: 11.10237307234155, lng: 76.96543731838906 },
-  { lat: 11.102389559707879, lng: 76.96540473653049 },
-  { lat: 11.102406047074208, lng: 76.96537215467191 }
-];
-
 function DashBoard() {
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
@@ -72,6 +46,9 @@ function DashBoard() {
   const [mapCenter, setMapCenter] = useState({ lat: 11.10223, lng: 76.9659 });
   const [sosMessages, setSosMessages] = useState(new Map());
   const [trackData, setTrackData] = useState([]);
+  const [sosPopups, setSosPopups] = useState(new Map());
+  const [warnings, setWarnings] = useState(new Map());
+  const [trackCoordinates, setTrackCoordinates] = useState([]);
   const [newTrackData, setNewTrackData] = useState({
     name: "",
     latitude: "",
@@ -83,6 +60,44 @@ function DashBoard() {
   const markersRef = useRef(new Map());
 
   useEffect(() => {
+    // Function to load the CSV file and parse it
+    const loadCSV = async () => {
+      try {
+        const response = await fetch('/coordinates1.csv');
+        const reader = response.body.getReader();
+        const result = await reader.read(); // Raw binary data
+        const decoder = new TextDecoder('utf-8');
+        const csv = decoder.decode(result.value); // Convert binary to text
+  
+        Papa.parse(csv, {
+          header: true,
+          skipEmptyLines: true,
+          complete: function(results) {
+            const coordinates = results.data.map(row => ({
+              lat: parseFloat(row.lat),
+              lng: parseFloat(row.lng)
+            }));
+            setTrackCoordinates(coordinates);
+          }
+        });
+      } catch (error) {
+        console.error('Error loading CSV:', error);
+      }
+    };
+  
+    loadCSV();
+  }, []);
+  
+    {/* <div>
+      <h3>Coordinates</h3>
+      <ul>
+        {trackCoordinates.map((coord, index) => (
+          <li key={index}>{`Lat: ${coord.lat}, Lng: ${coord.lng}`}</li>
+        ))}
+      </ul>
+    </div>
+ */}
+  useEffect(() => {
     if (isLoaded) {
       import('marker-animate-unobtrusive').then((module) => {
         const SlidingMarker = module.default || module;
@@ -92,11 +107,20 @@ function DashBoard() {
     }
   }, [isLoaded]);
 
+  const handleWarningDismiss = useCallback((carId) => {
+    setWarnings((prevWarnings) => {
+      const newWarnings = new Map(prevWarnings);
+      newWarnings.delete(carId);
+      return newWarnings;
+    });
+  }, []);
+
   const getTimestamp = () => {
     const date = new Date();
     return date.toISOString();
   };
 
+  
   const findClosestTrackPoint = (position) => {
     let closestPoint = trackCoordinates[0];
     let minDistance = Number.MAX_VALUE;
@@ -114,87 +138,88 @@ function DashBoard() {
     return closestPoint;
   };
 
-  const [carsFinishedTrack, setCarsFinishedTrack] = useState(new Map());
-
-  // ... (other functions remain the same)
-
   const moveAlongTrack = (carId, startPosition, endPosition, speed) => {
     const startIndex = trackCoordinates.findIndex(
       point => point.lat === startPosition.lat && point.lng === startPosition.lng
     );
-    const endIndex = trackCoordinates.length - 1;
-  
+    const endIndex = trackCoordinates.findIndex(
+      point => point.lat === endPosition.lat && point.lng === endPosition.lng
+    );
+
     let currentIndex = startIndex;
     const moveInterval = setInterval(() => {
-      if (currentIndex < endIndex) {
-        currentIndex++;
-        const newPosition = trackCoordinates[currentIndex];
-  
-        setCars(prevCars => {
-          const newCars = new Map(prevCars);
-          const car = newCars.get(carId);
-          if (car) {
-            car.latitude = newPosition.lat;
-            car.longitude = newPosition.lng;
-            newCars.set(carId, car);
-          }
-          return newCars;
-        });
-  
-        updatePath(carId, newPosition);
-  
-        const marker = markersRef.current.get(carId);
-        if (marker) {
-          marker.setPosition(newPosition);
+      currentIndex = (currentIndex + 1) % trackCoordinates.length;
+      const newPosition = trackCoordinates[currentIndex];
+
+      setCars(prevCars => {
+        const newCars = new Map(prevCars);
+        const car = newCars.get(carId);
+        if (car) {
+          car.latitude = newPosition.lat;
+          car.longitude = newPosition.lng;
+          newCars.set(carId, car);
         }
-      } else {
-        // Car has reached the end of the track
-        clearInterval(moveInterval);
-        setCarsFinishedTrack(prev => new Map(prev).set(carId, true));
-        console.log(`Car ${carId} has finished the race!`);
+        return newCars;
+      });
+
+      updatePath(carId, newPosition);
+
+      // Update the marker position
+      const marker = markersRef.current.get(carId);
+      if (marker) {
+        marker.setPosition(newPosition);
       }
-    }, 1000 / speed);
+
+      if (currentIndex === endIndex) {
+        clearInterval(moveInterval);
+      }
+    }, 1000 / speed); // Adjust interval based on speed
   };
 
   const updateCarData = useCallback((data) => {
-    console.log('hit ', data, getTimestamp());
+    console.log('Updating car data:', data, getTimestamp());
+  
+    /* // Check if trackCoordinates is loaded
+    if (trackCoordinates.length === 0) {
+      console.warn('Track coordinates are not loaded yet.');
+      return;
+    }
+   */
     setCars((prevCars) => {
       const newCars = new Map(prevCars);
-      data.forEach(car => {
-        const currentCar = newCars.get(car.carId);
-        const newPosition = { lat: car.latitude, lng: car.longitude };
   
-        if (!currentCar) {
-          // New car, add it to the map
-          newCars.set(car.carId, {
-            ...car,
-            latitude: newPosition.lat,
-            longitude: newPosition.lng
-          });
-        } else {
-          // Existing car, update its position smoothly
-          const marker = markersRef.current.get(car.carId);
-          if (marker && marker.setPosition && typeof marker.setDuration === 'function') {
-            // Use SlidingMarker for smooth transition
-            marker.setDuration(1000);
-            marker.setEasing('linear');
-            marker.setPosition(newPosition);
-          } else {
-            // Fallback to instant position update if SlidingMarker is not available
-            newCars.set(car.carId, {
-              ...car,
-              latitude: newPosition.lat,
-              longitude: newPosition.lng
-            });
-          }
+      data.forEach(car => {
+        // Check if car data is valid
+        if (!car.latitude || !car.longitude) {
+          console.warn('Car data missing latitude or longitude:', car);
+          return;
         }
   
-        // Update path regardless of whether the car is on or off the predefined track
-        updatePath(car.carId, newPosition);
+        const currentPosition = newCars.get(car.carId) || {
+          latitude: trackCoordinates[0]?.lat || 0, // Default to 0 if undefined
+          longitude: trackCoordinates[0]?.lng || 0 // Default to 0 if undefined
+        };
+  
+        const closestPoint = findClosestTrackPoint({ lat: car.latitude, lng: car.longitude });
+  
+        moveAlongTrack(
+          car.carId,
+          { lat: currentPosition.latitude, lng: currentPosition.longitude },
+          closestPoint,
+          car.speed
+        );
+  
+        newCars.set(car.carId, {
+          ...car,
+          latitude: closestPoint.lat,
+          longitude: closestPoint.lng
+        });
       });
+  
       return newCars;
     });
-  }, [carsFinishedTrack]);
+  }, [trackCoordinates]);
+  
 
   const updatePath = (carId, position) => {
     setPaths(prevPaths => {
@@ -218,6 +243,28 @@ function DashBoard() {
       return newMessages;
     });
   }, []);
+
+  useEffect(() => {
+    const socket = io('http://localhost:3000');
+
+    socket.on('warning', (data) => {
+      setSosPopups((prevPopups) => {
+        const newPopups = new Map(prevPopups);
+        newPopups.set(data.carId, data.message);
+        return newPopups;
+      });
+
+      // Automatically remove the popup after 10 seconds
+      setTimeout(() => {
+        setSosPopups((prevPopups) => {
+          const newPopups = new Map(prevPopups);
+          newPopups.delete(data.carId);
+          return newPopups;
+        });
+      }, 10000);
+    });
+    return () => socket.disconnect();
+  }, [updateCarData, updateCarStatus]);
 
   useEffect(() => {
     const getTrackData = async () => {
@@ -354,10 +401,29 @@ function DashBoard() {
     }, [position, carId, SlidingMarker]);
 
     return (
-      <Marker
-        position={position}
-        icon={sosMessages.has(carId) ? SosIcon : RaceCar}
-      />
+      <>
+        <Marker
+          position={position}
+          icon={sosMessages.has(carId) ? SosIcon : RaceCar}
+        />
+        {sosPopups.has(carId) && (
+          <InfoWindow
+            position={position}
+            onCloseClick={() => {
+              setSosPopups((prevPopups) => {
+                const newPopups = new Map(prevPopups);
+                newPopups.delete(carId);
+                return newPopups;
+              });
+            }}
+          >
+            <div className="p-2 bg-red-100 border-2 border-red-500 rounded">
+              <h3 className="font-bold text-red-700">SOS Alert</h3>
+              <p>{sosPopups.get(carId)}</p>
+            </div>
+          </InfoWindow>
+        )}
+      </>
     );
   });
 
@@ -400,15 +466,22 @@ function DashBoard() {
             </div>
           </header>
           <div className='flex flex-col flex-grow md:flex-row'>
-            <div className='flex md:w-[20%] w-[100%] bg-gray-900 shadow-md rounded-r-md'>
-              <div className='flex-row flex-grow hidden p-4 md:flex md:flex-col hide-scrollbar overflow-y-auto' style={{ maxHeight: 'calc(100vh - 4rem)' }}>
-                <h1 className='text-xl font-bold text-white'>Cars</h1>
-                {sortedCars.map((car) => (
-                  <CarInfo key={car.carId} car={car} sosMessages={sosMessages} onClick={handleCarInfoClick} />
-                ))}
-              </div>
-            </div>
-            <main className="flex flex-col flex-grow min-h-[100%]">
+        <div className='flex md:w-[20%] w-[100%] bg-gray-900 shadow-md rounded-r-md'>
+          <div className='flex-row flex-grow hidden p-4 md:flex md:flex-col hide-scrollbar overflow-y-auto' style={{ maxHeight: 'calc(100vh - 4rem)' }}>
+            <h1 className='text-xl font-bold text-white'>Cars</h1>
+            {sortedCars.map((car) => (
+              <CarInfo 
+                key={car.carId} 
+                car={car} 
+                sosMessages={sosMessages} 
+                warning={warnings.get(car.carId)}
+                onClick={handleCarInfoClick}
+                onWarningDismiss={() => handleWarningDismiss(car.carId)}
+              />
+            ))}
+          </div>
+        </div>
+        <main className="flex flex-col flex-grow min-h-[100%]">
               {sosMessages.size > 0 && (
                 <div onDoubleClick={handleSosAlertClick} className="relative px-4 py-3 text-red-700 bg-red-100 border border-red-400 rounded h-max" role="alert">
                   <strong className="font-bold">SOS Alerts:</strong>
@@ -499,11 +572,11 @@ function DashBoard() {
   );
 }
 
-const CarInfo = ({ car, sosMessages, onClick }) => {
+const CarInfo = ({ car, sosMessages, warning, onClick, onWarningDismiss }) => {
   const hasSos = sosMessages.has(car.carId);
   return (
     <div
-      className={`relative flex flex-col mt-2 p-2 rounded-lg cursor-pointer ${hasSos ? 'border-4 border-red-600 animate-blinking' : 'border border-green-300 bg-green-500'}`}
+      className={`relative flex flex-col mt-2 p-2 rounded-lg cursor-pointer ${hasSos ? 'border-4 border-red-600 animate-blinking' : warning ? 'border-4 border-yellow-600' : 'border border-green-300 bg-green-500'}`}
       onClick={() => onClick(car.latitude, car.longitude)}
     >
       <span className='font-bold text-white'>Car: {car.carId}</span>
@@ -511,6 +584,20 @@ const CarInfo = ({ car, sosMessages, onClick }) => {
       <span className='text-white'>Longitude: {parseFloat(car.longitude).toFixed(4)}</span>
       <span className='text-white'>Speed: {parseFloat(car.speed).toFixed(1)} kmph</span>
       <span className='text-white'>Course: {parseFloat(car.course).toFixed(1)}°</span>
+      {warning && (
+        <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded">
+          <p>{warning}</p>
+          <button 
+            className="mt-1 px-2 py-1 bg-yellow-500 text-white rounded"
+            onClick={(e) => {
+              e.stopPropagation();
+              onWarningDismiss();
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 };
