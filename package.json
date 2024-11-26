@@ -27,6 +27,7 @@
     "leaflet.gridlayer.googlemutant": "^0.14.1",
     "lucide-react": "^0.396.0",
     "marker-animate-unobtrusive": "^0.2.9",
+    "mqtt": "^5.10.1",
     "next": "14.2.3",
     "papaparse": "^5.4.1",
     "react": "^18",
@@ -42,5 +43,9 @@
     "daisyui": "^4.12.2",
     "postcss": "^8",
     "tailwindcss": "^3.4.1"
-  }
+  },
+  "description": "This project is a real-time tracking system for rally cars, built using Next.js for the frontend. The system displays the live location of rally cars on an interactive map, provides real-time updates via socket connections, and includes SOS and OK messaging functionality.",
+  "main": "tailwind.config.js",
+  "author": "",
+  "license": "ISC"
 }
