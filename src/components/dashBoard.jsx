@@ -129,7 +129,7 @@ function DashBoard() {
     };
     getTrackData();
 
-    const socket = io('https://blueband-back-818859582946.asia-south1.run.app/');
+    const socket = io('https://blueband-back-577523927330.asia-south2.run.app');
 
     socket.on('locationUpdate', updateCarData);
     socket.on('ok', updateCarStatus);
