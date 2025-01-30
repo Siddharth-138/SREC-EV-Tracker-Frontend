@@ -18,8 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const RaceCar = {
-  url: '/racingcar.png',
-  scaledSize: { width: 38, height: 38 },
+  url: '/car-service.png',
+  scaledSize: { width: 40, height: 40 },
   origin: { x: 0, y: 0 },
   anchor: { x: 19, y: 19 },
 };
@@ -32,6 +32,9 @@ const SosIcon = {
 };
 
 const audio = typeof window !== 'undefined' ? new Audio("alert.mp3") : null;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+
 
 function DashBoard() {
   const { isLoaded } = useJsApiLoader({
@@ -129,7 +132,8 @@ function DashBoard() {
     };
     getTrackData();
 
-    const socket = io('https://blueband-backend-577523927330.asia-south1.run.app');
+    const socket = io('https://blueband-backend-577523927330.asia-south1.run.app/');
+    //https://blueband-backend-577523927330.asia-south1.run.app
 
     socket.on('locationUpdate', updateCarData);
     socket.on('ok', updateCarStatus);
@@ -343,14 +347,14 @@ function DashBoard() {
                       >
                         {/* Add your popup content here if needed */}
                       </Marker>
-                      {/* <Polyline
+                      <Polyline
                         path={paths.get(car.carId) || []}
                         options={{
                           strokeColor: "#FF0000",
                           strokeOpacity: 1.0,
                           strokeWeight: 2
                         }}
-                      /> */}
+                      />
                     </React.Fragment>
                   ))}
                 </GoogleMap>
