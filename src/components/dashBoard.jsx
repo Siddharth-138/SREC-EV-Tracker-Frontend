@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { GoogleMap, Marker, Polyline, useJsApiLoader } from '@react-google-maps/api';
+import { Analytics } from '@vercel/analytics/next';
 import io from 'socket.io-client';
 import Image from 'next/image';
 import supabase from '../../utils/supabase/client';
@@ -18,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const RaceCar = {
-  url: '/car-service.png',
+  url: '/pin.png',
   scaledSize: { width: 40, height: 40 },
   origin: { x: 0, y: 0 },
   anchor: { x: 19, y: 19 },
@@ -426,5 +427,5 @@ const CarInfo = ({ car, sosMessages, warning, onClick, onWarningDismiss }) => {
     </div>
   );
 };
-
+<Analytics />
 export default DashBoard;
