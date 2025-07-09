@@ -1,11 +1,12 @@
 "use client";
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { GoogleMap, Marker, Polyline, useJsApiLoader } from '@react-google-maps/api';
-import { Analytics } from '@vercel/analytics/next';
+import { MapContainer, TileLayer, Marker, Popup, useMap , Tooltip } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import io from 'socket.io-client';
 import Image from 'next/image';
 import supabase from '../../utils/supabase/client';
-import { Button } from "@/components/ui/button";
+// import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -15,39 +16,278 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+// import { Input } from "@/components/ui/input";
+// import { Label } from "@/components/ui/label";
 
-const RaceCar = {
-  url: '/pin.png',
-  scaledSize: { width: 40, height: 40 },
-  origin: { x: 0, y: 0 },
-  anchor: { x: 19, y: 19 },
+// Create custom icons for Leaflet
+const RaceCarIcon = L.divIcon({
+  html: `
+    <div style="
+      width: 25px; 
+      height: 25px; 
+      background-image: url('/i.png'); 
+      background-size: cover; 
+      background-position: center;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    "></div>
+    <div style="
+      position: absolute;
+      top: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgb(232, 15, 15);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+      border: 1px solid white;
+    ">EV</div>
+  `,
+  className: 'custom-div-icon',
+  iconSize: [25, 25],
+  iconAnchor: [12.5, 12.5],
+});
+
+const SosIcon = L.divIcon({
+  html: `
+    <div style="
+      width: 38px; 
+      height: 38px; 
+      background-image: url('/sos.png'); 
+      background-size: cover; 
+      background-position: center;
+      border-radius: 50%;
+      border: 3px solid red;
+      box-shadow: 0 2px 8px rgba(255,0,0,0.5);
+      animation: pulse 1s infinite;
+    "></div>
+    <div style="
+      position: absolute;
+      top: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgb(232, 15, 15);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+      border: 1px solid white;
+    ">SOS</div>
+  `,
+  className: 'custom-div-icon sos-icon',
+  iconSize: [38, 38],
+  iconAnchor: [19, 19],
+});
+
+const createCustomIcon = ({ imageUrl, label, borderColor = '#333' }) => {
+  return L.divIcon({
+    html: `
+      <div style="
+        width: 10px; 
+        height: 10px; 
+        background-image: url('${imageUrl}'); 
+        background-size: cover; 
+        background-color: white;
+        border-radius: 8px;
+        border: 2px solid ${borderColor};
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        position: relative;
+      "></div>
+      <div style="
+        position: absolute;
+        top: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: ${borderColor};
+        color: white;
+        padding: 2px 8px;
+        border-radius: 3px;
+        font-size: 10px;
+        font-weight: bold;
+        white-space: nowrap;
+        border: 1px solid white;
+      ">${label}</div>
+    `,
+    className: 'custom-icon',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
 };
 
-const SosIcon = {
-  url: '/sos.png',
-  scaledSize: { width: 38, height: 38 },
-  origin: { x: 0, y: 0 },
-  anchor: { x: 19, y: 19 },
+// ✅ Step 2: Static locations with dynamic icons
+const staticLocations = [
+  {
+    id: 'food-court',
+    name: 'Food Court',
+    lat: 11.101040,
+    lng: 76.964291,
+    icon: createCustomIcon({
+      imageUrl: '/food.jpg',
+      label: 'Food Court',
+      borderColor: '#ff6b35'
+    }),
+    description: 'Campus Food Court - Grab a bite here!',
+  },
+  {
+    id: 'library',
+    name: 'Library',
+    lat: 11.102444,
+    lng: 76.966510,
+    icon: createCustomIcon({
+      imageUrl: '/library.jpg',
+      label: 'Library',
+      borderColor: '#4CAF50'
+    }),
+    description: 'Campus Library',
+  },
+  {
+    id: 'IT',
+    name: 'IT Block',
+    lat: 11.101260,
+    lng: 76.965972,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'IT Block',
+      borderColor: '#3F51B5'
+    }),
+    description: 'Student Hostel',
+  },
+  {
+    id: 'G',
+    name: 'G Block',
+    lat: 11.101125,
+    lng: 76.965353,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'G Block',
+      borderColor: '#4CAF50'
+    }),
+    description: 'G Block'
+  },
+  {
+    id: 'ECE_EEE',
+    name: 'ECE / EEE Block',
+    lat: 11.100971,
+    lng: 76.966034,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'ECE/EEE',
+      borderColor: '#FF9800'
+    }),
+    description: 'Electronics and Electrical Engineering Block'
+  },
+  {
+    id: 'C',
+    name: 'C Block',
+    lat: 11.101729,
+    lng: 76.965843,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'C Block',
+      borderColor: '#F44336'
+    }),
+    description: 'C Block'
+  },
+  {
+    id: 'ADMIN',
+    name: 'Admin Block',
+    lat: 11.102224,
+    lng: 76.965714,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'Admin',
+      borderColor: '#9C27B0'
+    }),
+    description: 'Administrative Block'
+  },
+  {
+    id: 'SPARK',
+    name: 'Spark',
+    lat: 11.101820,
+    lng: 76.966408,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'Spark',
+      borderColor: '#00BCD4'
+    }),
+    description: 'Innovation Center - Spark'
+  }
+];
+
+// Component to handle map center updates and always center on cars
+const MapUpdater = ({ center, cars, followCars }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (followCars && cars.size > 0) {
+      // Always center on the first car or average of all cars
+      const carsArray = Array.from(cars.values());
+      if (carsArray.length === 1) {
+        // Center on single car
+        const car = carsArray[0];
+        map.setView([car.latitude, car.longitude], map.getZoom());
+      } else {
+        // Center on average position of all cars
+        const avgLat = carsArray.reduce((sum, car) => sum + car.latitude, 0) / carsArray.length;
+        const avgLng = carsArray.reduce((sum, car) => sum + car.longitude, 0) / carsArray.length;
+        map.setView([avgLat, avgLng], map.getZoom());
+      }
+    } else if (center) {
+      map.setView([center.lat, center.lng], map.getZoom());
+    }
+  }, [center, cars, followCars, map]);
+  
+  return null;
+};
+
+// Component to handle animated marker movement
+const AnimatedMarker = ({ position, carId, icon, sosMessages }) => {
+  const map = useMap();
+  const markerRef = useRef(null);
+  
+  useEffect(() => {
+    if (!markerRef.current) {
+      markerRef.current = L.marker([position.lat, position.lng], { icon })
+        .addTo(map);
+    } else {
+      // Animate marker to new position
+      const currentLatLng = markerRef.current.getLatLng();
+      const newLatLng = L.latLng(position.lat, position.lng);
+      
+      // Simple animation using setLatLng with a small delay
+      const animateMarker = () => {
+        markerRef.current.setLatLng(newLatLng);
+        markerRef.current.setIcon(sosMessages.has(carId) ? SosIcon : RaceCarIcon);
+      };
+      
+      setTimeout(animateMarker, 100);
+    }
+  }, [position, carId, icon, map, sosMessages]);
+  
+  useEffect(() => {
+    return () => {
+      if (markerRef.current) {
+        map.removeLayer(markerRef.current);
+      }
+    };
+  }, [map]);
+  
+  return null;
 };
 
 const audio = typeof window !== 'undefined' ? new Audio("alert.mp3") : null;
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-
 
 function DashBoard() {
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
-    libraries: ['geometry']
-  });
-
-  const [SlidingMarker, setSlidingMarker] = useState(null);
   const [cars, setCars] = useState(new Map());
   const [mapCenter, setMapCenter] = useState({ lat: 11.10223, lng: 76.9659 });
   const [sosMessages, setSosMessages] = useState(new Map());
+  const [selectedCar, setSelectedCar] = useState(null);
   const [okMessages, setOkMessages] = useState(new Map());
   const [trackData, setTrackData] = useState([]);
   const [newTrackData, setNewTrackData] = useState({
@@ -57,18 +297,8 @@ function DashBoard() {
     zoom: ""
   });
   const [paths, setPaths] = useState(new Map());
+  const [followCars, setFollowCars] = useState(true);
   const mapRef = useRef(null);
-  const markersRef = useRef(new Map());
-
-  useEffect(() => {
-    if (isLoaded) {
-      import('marker-animate-unobtrusive').then((module) => {
-        const SlidingMarker = module.default || module;
-        SlidingMarker.initializeGlobally();
-        setSlidingMarker(() => SlidingMarker);
-      });
-    }
-  }, [isLoaded]);
 
   const getTimestamp = () => {
     const date = new Date();
@@ -91,7 +321,7 @@ function DashBoard() {
     setPaths(prevPaths => {
       const newPaths = new Map(prevPaths);
       const carPath = newPaths.get(carId) || [];
-      newPaths.set(carId, [...carPath, position].slice(-100)); // Keep last 100 points
+      newPaths.set(carId, [...carPath, position].slice(-100));
       return newPaths;
     });
   };
@@ -104,7 +334,7 @@ function DashBoard() {
       const carId = typeof data.carId === 'number' ? data.carId : String(data.carId);
       newMessages.set(carId, data.message);
       return newMessages;
-  });
+    });
 
     setSosMessages((prevMessages) => {
       const newMessages = new Map(prevMessages);
@@ -133,8 +363,7 @@ function DashBoard() {
     };
     getTrackData();
 
-    const socket = io('https://blueband-backend-577523927330.asia-south1.run.app/');
-    //https://blueband-backend-577523927330.asia-south1.run.app
+    const socket = io('http://localhost:3002/');
 
     socket.on('locationUpdate', updateCarData);
     socket.on('ok', updateCarStatus);
@@ -153,7 +382,6 @@ function DashBoard() {
     return () => socket.disconnect();
   }, [updateCarData, updateCarStatus]);
 
-
   const readMessage = (carId, message) => {
     if (typeof window !== 'undefined') {
       const msg = new SpeechSynthesisUtterance(`${carId}: ${message}`);
@@ -163,6 +391,7 @@ function DashBoard() {
   };
 
   const handleCarInfoClick = useCallback((lat, lng) => {
+    setFollowCars(false);
     setMapCenter({ lat, lng });
   }, []);
 
@@ -176,11 +405,12 @@ function DashBoard() {
       audio.pause();
       audio.currentTime = 0;
     }
-    setMapCenter({ lat: 11.10223, lng: 76.9659 }); // Reset to default center (SREC)
+    setMapCenter({ lat: 11.10223, lng: 76.9659 });
+    setFollowCars(true);
   }, []);
 
   const handleAddNewTrack = async () => {
-    if (!newTrackData.name || !newTrackData.latitude || !newTrackData.longitude || !newTrackData.zoom) {
+    if (!newTrackData.name || !newTrakData.latitude || !newTrackData.longitude || !newTrackData.zoom) {
       alert('Please fill out all fields.');
       return;
     }
@@ -223,8 +453,10 @@ function DashBoard() {
     const selectedTrackId = event.target.value;
     const selectedTrack = trackData.find(track => track.id === parseInt(selectedTrackId));
     if (selectedTrack) {
+      setFollowCars(false);
       setMapCenter({ lat: selectedTrack.latitude, lng: selectedTrack.longitude });
     } else {
+      setFollowCars(true);
       setMapCenter({ lat: 11.10223, lng: 76.9659 });
     }
   };
@@ -237,29 +469,7 @@ function DashBoard() {
     }));
   };
 
-  const AnimatedMarker = React.memo(({ position, carId }) => {
-    const markerRef = useRef(null);
-
-    useEffect(() => {
-      if (!markerRef.current && SlidingMarker) {
-        const newMarker = new SlidingMarker({
-          position,
-          duration: 1000,
-          easing: 'easeOutQuad'
-        });
-        markerRef.current = newMarker;
-        markersRef.current.set(carId, newMarker);
-      } else if (markerRef.current) {
-        markerRef.current.setPosition(position);
-      }
-    }, [position, carId, SlidingMarker]);
-
-    return null;
-  });
-
   const sortedCars = useMemo(() => Array.from(cars.values()).sort((a, b) => a.carId - b.carId), [cars]);
-
-  if (!isLoaded || !SlidingMarker) return <div>Loading...</div>;
 
   return (
     <>
@@ -271,40 +481,51 @@ function DashBoard() {
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
+        .custom-div-icon {
+          background: transparent !important;
+          border: none !important;
+        }
+        .sos-icon {
+          animation: pulse 1s infinite;
+        }
+        .custom-icon {
+          z-index: 1000;
+        }
+        .location-icon-container:hover .location-label {
+          opacity: 1;
+          visibility: visible;
+        }
+        .location-icon-container.clicked .location-label {
+          opacity: 1;
+          visibility: visible;
+        }
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
+        }
+        .leaflet-container {
+          height: 100%;
+          width: 100%;
+        }
       `}</style>
 
       <div className="flex flex-col min-h-screen">
         <Dialog>
-          <header className="p-0 text-white bg-slate-900">
+          <header className="p-0 text-white bg-orange-600">
             <div className="flex flex-row items-center w-full p-4">
               <Image
-                src="/blueband_logo.png"
+                src="/college-logo.jpg"
                 width={50}
                 height={50}
                 alt="BlueBand Sports Logo"
               />
-              <h1 className="ml-3 text-2xl font-bold">BlueBand Sports</h1>
-              <select className="w-auto h-10 p-2 ml-auto text-lg font-bold rounded-lg bg-slate-900 hover:cursor-pointer" onChange={handleRaceTrackChange}>
-                <option value="d" className='bg-slate-400'>Select a track</option>
-                {trackData.map((track) => (
-                  <option key={track.id} value={track.id}>{track.name}</option>
-                ))}
-              </select>
-              <DialogTrigger asChild className='w-4 ml-8'>
-                <Button variant="outline" className='bg-slate-600'>+</Button>
-              </DialogTrigger>
+              <h1 className="ml-3 text-2xl font-bold">SREC EV TRACKER</h1>
             </div>
           </header>
           <div className='flex flex-col flex-grow md:flex-row'>
-            <div className='flex md:w-[20%] w-[100%] bg-gray-900 shadow-md rounded-r-md'>
-              <div className='flex-row flex-grow hidden p-4 md:flex md:flex-col hide-scrollbar overflow-y-auto' style={{ maxHeight: 'calc(100vh - 4rem)' }}>
-                <h1 className='text-xl font-bold text-white'>Cars</h1>
-                {sortedCars.map((car) => (
-                  <CarInfo key={car.carId} car={car} sosMessages={sosMessages} onClick={handleCarInfoClick} />
-                ))}
-              </div>
-            </div>
-            <main className="flex flex-col flex-grow min-h-[100%]">
+            
+            <main className="flex flex-col flex-grow min-h-[100%] relative">
               {sosMessages.size > 0 && (
                 <div onDoubleClick={handleSosAlertClick} className="relative px-4 py-3 text-red-700 bg-red-100 border border-red-400 rounded h-max" role="alert">
                   <strong className="font-bold">SOS Alerts:</strong>
@@ -327,105 +548,94 @@ function DashBoard() {
               )}
 
               {cars.size > 0 ? (
-                <GoogleMap
-                  mapContainerClassName="map-container"
-                  mapContainerStyle={{ width: '100%', height: '100%' }}
-                  center={mapCenter}
-                  zoom={18}
-                  onLoad={(map) => {
-                    mapRef.current = map;
-                  }}
-                >
-                  {sortedCars.map((car) => (
-                    <React.Fragment key={car.carId}>
-                      <AnimatedMarker
-                        position={{ lat: car.latitude, lng: car.longitude }}
-                        carId={car.carId}
-                      />
-                      <Marker
-                        position={{ lat: car.latitude, lng: car.longitude }}
-                        icon={sosMessages.has(car.carId) ? SosIcon : RaceCar}
-                      >
-                        {/* Add your popup content here if needed */}
-                      </Marker>
-                      <Polyline
-                        path={paths.get(car.carId) || []}
-                        options={{
-                          strokeColor: "#FF0000",
-                          strokeOpacity: 1.0,
-                          strokeWeight: 2
-                        }}
-                      />
-                    </React.Fragment>
+                <div style={{ height: '100%', width: '100%' }}>
+                  <MapContainer
+                    center={[mapCenter.lat, mapCenter.lng]}
+                    zoom={19}
+                    maxZoom={22}
+                    style={{ height: '100%', width: '100%' }}
+                    ref={mapRef}
+                    attributionControl={false}
+                  >
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution=""
+                      maxZoom={22}
+                    />
+                    
+                    <MapUpdater center={mapCenter} cars={cars} followCars={followCars} />
+                    
+                    {/* Static Location Markers */}
+                    {staticLocations.map((location) => (
+                    <Marker
+                      key={location.id}
+                      position={[location.lat, location.lng]}
+                      icon={location.icon}
+                      
+                    >
+                      {/* Show label on hover */}
+                      <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+                        <span>{location.name}</span>
+                      </Tooltip>
+
+                      {/* Show details on click */}
+                      <Popup>
+                        <div className="p-2">
+                          <h3 className="font-bold text-lg">{location.name}</h3>
+                          <p>{location.description}</p>
+                          <p><strong>Latitude:</strong> {location.lat.toFixed(6)}</p>
+                          <p><strong>Longitude:</strong> {location.lng.toFixed(6)}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
                   ))}
-                </GoogleMap>
+
+                    
+                    {/* Car Markers */}
+                    {sortedCars.map((car) => (
+                      <Marker
+                        key={car.carId}
+                        position={[car.latitude, car.longitude]}
+                        icon={sosMessages.has(car.carId) ? SosIcon : RaceCarIcon}
+                      >
+                        <Popup>
+                          <div className="p-2">
+                            <h3 className="font-bold text-lg">EV {car.carId}</h3>
+                            <p><strong>Speed:</strong> {parseFloat(car.speed).toFixed(1)} kmph</p>
+                            <p><strong>Latitude:</strong> {parseFloat(car.latitude).toFixed(6)}</p>
+                            <p><strong>Longitude:</strong> {parseFloat(car.longitude).toFixed(6)}</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    ))}
+                  </MapContainer>
+                </div>
               ) : (
                 <div className='flex items-center justify-center flex-grow'>
                   <h1>Tracking Not Enabled</h1>
                 </div>
               )}
-            </main>
-          </div>
-
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add New Track</DialogTitle>
-              <DialogDescription>
-                Enter all details of track.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid items-center grid-cols-4 gap-4">
-                <Label htmlFor="name" className="text-right">
-                  Name
-                </Label>
-                <Input id="name" name="name" value={newTrackData.name} onChange={handleInputChange} className="col-span-3 font-bold text-slate-500" />
-              </div>
-              <div className="grid items-center grid-cols-4 gap-4">
-                <Label htmlFor="latitude" className="text-right">
-                  Latitude
-                </Label>
-                <Input id="latitude" name="latitude" value={newTrackData.latitude} onChange={handleInputChange} className="col-span-3 font-bold text-slate-500" />
-              </div>
-              <div className="grid items-center grid-cols-4 gap-4">
-                <Label htmlFor="longitude" className="text-right">
-                  Longitude
-                </Label>
-                <Input id="longitude" name="longitude" value={newTrackData.longitude} onChange={handleInputChange} className="col-span-3 font-bold text-slate-500" />
-              </div>
-              <div className="grid items-center grid-cols-4 gap-4">
-                <Label htmlFor="zoom" className="text-right">
-                  Zoom
-                </Label>
-                <Input id="zoom" name="zoom" value={newTrackData.zoom} onChange={handleInputChange} className="col-span-3 font-bold text-slate-500" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" onClick={handleAddNewTrack}>Add track</Button>
-            </DialogFooter>
-          </DialogContent>
+            </main> 
+          </div>        
         </Dialog>
       </div>
     </>
   );
 }
 
+// const CarInfo = ({ car, sosMessages, warning, onClick, onWarningDismiss }) => {
+//   const hasSos = sosMessages.has(parseInt(car.carId));
+//   return (
+//     <div
+//       className={`relative flex flex-col mt-2 p-2 rounded-lg cursor-pointer ${hasSos ? 'border-4 border-red-600 animate-blinking' : 'border border-green-300 bg-green-500'}`}
+//       onClick={() => onClick(car.latitude, car.longitude)}
+//     >
+//       <span className='font-bold text-white'>Car: {car.carId}</span>
+//       <span className='text-white'>Latitude: {(parseFloat(car.latitude).toFixed(4))}</span>
+//       <span className='text-white'>Longitude: {(parseFloat(car.longitude).toFixed(4))}</span>
+//       <span className='text-2 text-white'>Speed: {parseFloat(car.speed).toFixed(1)} kmph</span>
+//     </div>
+//   );
+// };
 
-const CarInfo = ({ car, sosMessages, warning, onClick, onWarningDismiss }) => {
-  const hasSos = sosMessages.has(parseInt(car.carId));
-  // console.log('--',sosMessages);
-  // console.log('R/G', hasSos, car.carId);
-  return (
-    <div
-      className={`relative flex flex-col mt-2 p-2 rounded-lg cursor-pointer ${hasSos ? 'border-4 border-red-600 animate-blinking' : 'border border-green-300 bg-green-500'}`}
-      onClick={() => onClick(car.latitude, car.longitude)}
-    >
-      <span className='font-bold text-white'>Car: {car.carId}</span>
-      <span className='text-white'>Latitude: { (parseFloat(car.latitude).toFixed(4)) }</span>
-      <span className='text-white'>Longitude: {(parseFloat(car.longitude).toFixed(4))}</span>
-      <span className='text-white'>Speed: {parseFloat(car.speed).toFixed(1)} kmph</span>
-    </div>
-  );
-};
-<Analytics />
 export default DashBoard;
