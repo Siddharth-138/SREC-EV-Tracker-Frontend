@@ -385,7 +385,7 @@ function DashBoard() {
   };
 
   const getLocationProximityStatus = (location) => {
-  const PROXIMITY_THRESHOLD = 10; // 10 meters threshold
+  const PROXIMITY_THRESHOLD = 50; //50 meters threshold
   
   for (const car of cars.values()) {
     const distance = calculateDistance(
