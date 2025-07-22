@@ -8,21 +8,31 @@ import Image from 'next/image';
 import supabase from '../../utils/supabase/client';
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371e3; // Earth's radius in meters
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lon2-lon1) * Math.PI/180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  const distance = R * c; // Distance in meters
+  return distance;
+};
 
 // Create custom icons for Leaflet
 const RaceCarIcon = L.divIcon({
   html: `
-    <div style="
+      <div style="
       width: 32px; 
       height: 32px; 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #0501f9ff 0%, #0501f9ff 100%);
       border-radius: 50%;
       border: 3px solid white;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -31,13 +41,14 @@ const RaceCarIcon = L.divIcon({
       justify-content: center;
       position: relative;
     ">
+
       <div style="
-        width: 16px;
-        height: 16px;
-        background-image: url('/i.png');
+        width: 65%;
+        height: 65%;
+        background-image: url('/C3.png');
         background-size: cover;
         background-position: center;
-        border-radius: 50%;
+        // border-radius: 50%;
       "></div>
     </div>
     <div style="
@@ -59,52 +70,6 @@ const RaceCarIcon = L.divIcon({
   className: 'custom-div-icon',
   iconSize: [32, 32],
   iconAnchor: [16, 16],
-});
-
-const SosIcon = L.divIcon({
-  html: `
-    <div style="
-      width: 42px; 
-      height: 42px; 
-      background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-      border-radius: 50%;
-      border: 3px solid white;
-      box-shadow: 0 4px 16px rgba(255,65,108,0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      animation: pulse 1s infinite;
-      position: relative;
-    ">
-      <div style="
-        width: 24px;
-        height: 24px;
-        background-image: url('/sos.png');
-        background-size: cover;
-        background-position: center;
-        border-radius: 50%;
-      "></div>
-    </div>
-    <div style="
-      position: absolute;
-      top: -35px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
-      color: white;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 700;
-      white-space: nowrap;
-      border: 2px solid white;
-      box-shadow: 0 2px 8px rgba(255,65,108,0.3);
-      animation: pulse 1s infinite;
-    ">SOS</div>
-  `,
-  className: 'custom-div-icon sos-icon',
-  iconSize: [42, 42],
-  iconAnchor: [21, 21],
 });
 
 const createCustomIcon = ({ imageUrl, label, borderColor = '#333' }) => {
@@ -168,13 +133,13 @@ const createCustomIcon = ({ imageUrl, label, borderColor = '#333' }) => {
 // Enhanced static locations with better styling
 const staticLocations = [
   {
-    id: 'food-court',
-    name: 'Food Court',
+    id: 'F',
+    name: 'F - Block',
     lat: 11.101040,
     lng: 76.964291,
     icon: createCustomIcon({
       imageUrl: '/food.jpg',
-      label: 'Food Court',
+      label: 'F block',
       borderColor: '#ff6b35'
     }),
     description: 'Campus Food Court - Grab a bite here!',
@@ -240,7 +205,7 @@ const staticLocations = [
     icon: createCustomIcon({
       imageUrl: '/hostel.jpg',
       label: 'C Block',
-      borderColor: '#F44336'
+      borderColor: '#000000ff'
     }),
     description: 'C Block - Academic Building',
     category: 'academic'
@@ -257,6 +222,71 @@ const staticLocations = [
     }),
     description: 'Administrative Block',
     category: 'administrative'
+  },
+  {
+    id: 'HOSTEL1',
+    name: 'Mens Hostel - II',
+    lat: 11.100735,
+    lng: 76.967428,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'Mens Hostel - II',
+      borderColor: '#f90ff1ff'
+    }),
+    description: 'Mens Hostel',
+    category: 'hostel'
+  },
+  {
+    id: 'HOSTEL2',
+    name: 'International Hostel',
+    lat: 11.100602,
+    lng: 76.966803,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'International Hostel',
+      borderColor: '#0ff91bff'
+    }),
+    description: 'International Hostel',
+    category: 'hostel'
+  },
+{
+    id: 'HOSTEL3',
+    name: 'Mens Hostel - I',
+    lat: 11.100994,
+    lng: 76.968574,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'Mens Hostel - I',
+      borderColor: '#f9700fff'
+    }),
+    description: 'Mens Hostel - I',
+    category: 'hostel'
+  },
+  {
+    id: 'HOSTEL4',
+    name: 'Womens Hostel',
+    lat: 11.100112,
+    lng: 76.964500,
+    icon: createCustomIcon({
+      imageUrl: '/hostel.jpg',
+      label: 'Womens Hostel',
+      borderColor: '#f90fb3ff'
+    }),
+    description: 'Womens Hostel',
+    category: 'hostel'
+  },
+  {
+    id: 'FC',
+    name: 'Food Court',
+    lat: 11.101666,
+    lng: 76.964680,
+    icon: createCustomIcon({
+      imageUrl: '/food.jpg',
+      label: 'Food Court',
+      borderColor: '#c2f90fff'
+    }),
+    description: 'Food Court',
+    category: 'Food Court'
   },
   {
     id: 'SPARK',
@@ -354,6 +384,25 @@ function DashBoard() {
     return date.toISOString();
   };
 
+  const getLocationProximityStatus = (location) => {
+  const PROXIMITY_THRESHOLD = 10; // 10 meters threshold
+  
+  for (const car of cars.values()) {
+    const distance = calculateDistance(
+      location.lat, 
+      location.lng, 
+      car.latitude, 
+      car.longitude
+    );
+    
+    if (distance <= PROXIMITY_THRESHOLD) {
+      return { isNear: true, carId: car.carId, distance: distance.toFixed(1) };
+    }
+  }
+  
+  return { isNear: false, carId: null, distance: null };
+};
+
   const updateCarData = useCallback((data) => {
     console.log('hit ', data, getTimestamp());
     setCars((prevCars) => {
@@ -442,6 +491,25 @@ function DashBoard() {
       window.speechSynthesis.speak(new SpeechSynthesisUtterance("SOS Alert"));
       window.speechSynthesis.speak(msg);
     }
+  };
+
+  const getSortedLocationsByProximity = () => {
+    return [...staticLocations].sort((a, b) => {
+      const aProximity = getLocationProximityStatus(a);
+      const bProximity = getLocationProximityStatus(b);
+      
+      // First priority: locations with cars nearby
+      if (aProximity.isNear && !bProximity.isNear) return -1;
+      if (!aProximity.isNear && bProximity.isNear) return 1;
+      
+      // Second priority: if both have cars nearby, sort by distance (closer first)
+      if (aProximity.isNear && bProximity.isNear) {
+        return parseFloat(aProximity.distance) - parseFloat(bProximity.distance);
+      }
+      
+      // Default: keep original order for locations without nearby cars
+      return 0;
+    });
   };
 
   const handleCarInfoClick = useCallback((lat, lng) => {
@@ -552,6 +620,15 @@ function DashBoard() {
         .location-icon-container.clicked .location-label {
           opacity: 1;
           visibility: visible;
+        }
+        .location-near {
+          animation: locationPulse 2s infinite;
+        }
+
+        @keyframes locationPulse {
+          0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
         @keyframes pulse {
           0% { transform: scale(1); }
@@ -740,35 +817,69 @@ function DashBoard() {
 
                 {/* Location Categories */}
                 <div className="space-y-3">
-                  <h2 className="text-lg font-semibold text-gray-800 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Campus Locations
-                  </h2>
-                  
-                  <div className="space-y-2 max-h-48 overflow-y-auto hide-scrollbar">
-                    {staticLocations.map((location) => (
+                <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+                  <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Campus Locations
+                  {getSortedLocationsByProximity().filter(location => getLocationProximityStatus(location).isNear).length > 0 && (
+                    <span className="ml-2 px-2 py-1 bg-green-500 text-white text-xs rounded-full animate-pulse">
+                      {getSortedLocationsByProximity().filter(location => getLocationProximityStatus(location).isNear).length} Active
+                    </span>
+                  )}
+                </h2>
+                
+                <div className="space-y-2 max-h-48 overflow-y-auto hide-scrollbar">
+                  {getSortedLocationsByProximity().map((location) => {
+                    const proximityStatus = getLocationProximityStatus(location);
+                    
+                    return (
                       <div
                         key={location.id}
-                        className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors duration-200"
+                        className={`flex items-center p-3 rounded-lg cursor-pointer transition-all duration-300 ${
+                          proximityStatus.isNear 
+                            ? 'bg-gradient-to-r from-green-100 to-green-200 border-2 border-green-400 shadow-md transform scale-105' 
+                            : 'bg-gray-50 hover:bg-gray-100 border border-transparent'
+                        }`}
                         onClick={() => handleCarInfoClick(location.lat, location.lng)}
                       >
-                        <div className={`w-3 h-3 rounded-full mr-3 ${
-                          location.category === 'dining' ? 'bg-orange-500' :
-                          location.category === 'academic' ? 'bg-blue-500' :
-                          location.category === 'administrative' ? 'bg-purple-500' :
-                          'bg-cyan-500'
+                        <div className={`w-3 h-3 rounded-full mr-3 transition-all duration-300 ${
+                          proximityStatus.isNear 
+                            ? 'bg-green-500 animate-pulse shadow-lg' 
+                            : location.category === 'dining' ? 'bg-orange-500' :
+                              location.category === 'academic' ? 'bg-blue-500' :
+                              location.category === 'administrative' ? 'bg-purple-500' :
+                              'bg-cyan-500'
                         }`}></div>
-                        <div>
-                          <p className="font-medium text-gray-800">{location.name}</p>
-                          <p className="text-xs text-gray-600">{location.category}</p>
+                        <div className="flex-grow">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className={`font-medium ${proximityStatus.isNear ? 'text-green-800' : 'text-gray-800'}`}>
+                                {location.name}
+                              </p>
+                              <p className={`text-xs ${proximityStatus.isNear ? 'text-green-600' : 'text-gray-600'}`}>
+                                {location.category}
+                              </p>
+                            </div>
+                            {proximityStatus.isNear && (
+                              <div className="text-right">
+                                <div className="flex items-center text-green-600">
+                                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                  </svg>
+                                  <span className="text-xs font-semibold">EV {proximityStatus.carId}</span>
+                                </div>
+                                <p className="text-xs text-green-500">{proximityStatus.distance}m away</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
+              </div>
               </div>
             </aside>
             
