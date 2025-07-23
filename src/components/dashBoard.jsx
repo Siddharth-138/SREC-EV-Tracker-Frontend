@@ -276,6 +276,19 @@ const staticLocations = [
     category: 'hostel'
   },
   {
+    id: 'Auditorium',
+    name: 'Auditorium',
+    lat: 11.101632,
+    lng: 76.964180,
+    icon: createCustomIcon({
+      imageUrl: '/library.jpg',
+      label: 'Auditorium',
+      borderColor: '#760707ff'
+    }),
+    description: 'Auditorium - Venue for events and functions',
+    category: 'Events'
+  },
+  {
     id: 'FC',
     name: 'Food Court',
     lat: 11.101666,
