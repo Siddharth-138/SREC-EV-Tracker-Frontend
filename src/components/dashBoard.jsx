@@ -474,7 +474,7 @@ function DashBoard() {
     };
     getTrackData();
 
-    const socket = io('http://localhost:3002');
+    const socket = io('https://srec-ev-tracker-backend.onrender.com/');
     //https://srec-ev-tracker-backend.onrender.com/
 
     socket.on('locationUpdate', (data) => {
