@@ -398,7 +398,7 @@ function DashBoard() {
   };
 
   const getLocationProximityStatus = (location) => {
-  const PROXIMITY_THRESHOLD = 50; //50 meters threshold
+  const PROXIMITY_THRESHOLD = 40; //50 meters threshold
   
   for (const car of cars.values()) {
     const distance = calculateDistance(
@@ -474,7 +474,8 @@ function DashBoard() {
     };
     getTrackData();
 
-    const socket = io('https://srec-ev-tracker-backend.onrender.com/');
+    const socket = io('http://localhost:3002');
+    //https://srec-ev-tracker-backend.onrender.com/
 
     socket.on('locationUpdate', (data) => {
       console.log("Received location update:", data);
